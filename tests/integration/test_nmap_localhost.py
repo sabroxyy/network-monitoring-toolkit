@@ -87,6 +87,7 @@ async def test_real_scan_detects_new_port(http_port: int) -> None:
     (change,) = second.changes
     assert change.kind is ChangeKind.PORT_OPENED and change.port == http_port
     assert rec.sent and rec.sent[0][1][0].port == http_port
+    await storage.close()
 
 
 def test_cli_scan_loopback(
