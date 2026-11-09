@@ -1,0 +1,115 @@
+# netmon example configuration.
+# Copy to /etc/netmon/config.yaml (or set NETMON_CONFIG) and adapt.
+# Validate without sending a single packet:   netmon -c config.yaml validate
+#
+# Secrets are NEVER written here. Use references:
+#   env:VAR_NAME          -> read from environment variable
+#   file:/run/secrets/x   -> read from a mounted secret file (Docker / Kubernetes)
+
+# sqlite:////abs/path (4 slashes) or sqlite:///relative/path (3 slashes)
+database: sqlite:////var/lib/netmon/netmon.db
+
+# Refuse to start as root. Grant CAP_NET_RAW to the nmap binary instead.
+allow_root: false
+
+nmap:
+  path: nmap
+  # false -> TCP connect scans (-sT), no special privileges needed.
+  # true  -> SYN/UDP/OS detection; requires `setcap cap_net_raw,cap_net_admin+eip $(which nmap)`.
+  privileged: false
+
+policy:
+  # HARD scope: any target outside these ranges is refused (fail closed).
+  allowed_networks:
+    - 192.0.2.0/24        # RFC 5737 documentation range - replace with your networks
+    - 198.51.100.0/24
+  # Opt-outs. Passed to nmap as --exclude.
+  exclude:
+    - 192.0.2.1           # core router: owner asked not to be scanned
+  # Re-read before every scan so asset owners can opt out without a redeploy.
+  exclude_file: /etc/netmon/optout.txt
+  allow_hostnames: false
+  # Global scan windows (job-level windows override). Empty list = any time.
+  scan_windows:
+    - days: [mon, tue, wed, thu, fri]
+      start: "19:00"
+      end: "07:00"        # overnight windows wrap correctly
+      timezone: Europe/London
+    - days: [sat, sun]
+      start: "00:00"
+      end: "23:59"
+      timezone: Europe/London
+  max_concurrent_scans: 2
+  max_rate: 300           # packets/s across ALL concurrent scans
+  # Documented consent. Scans stop automatically after `expires`.
+  authorization:
+    owner: "Network Operations <netops@example.com>"
+    reference: "CHG-2026-0042"
+    expires: 2027-12-31
+
+jobs:
+  # Cheap, frequent liveness sweep.
+  - name: lan-discovery
+    targets: [192.0.2.0/24]
+    profile: discovery
+    interval: 15m
+    jitter: 2m
+
+  # Hourly port/service monitoring. Incremental: ping-sweep, then only scan
+  # hosts that are new or whose last full scan is older than rescan_after.
+  - name: lan-services
+    targets: [192.0.2.0/24]
+    profile: services
+    top_ports: 200
+    incremental: true
+    rescan_after: 24h
+    interval: 1h
+    jitter: 5m
+    timeout: 45m
+    host_timeout: 5m
+    timing: 3
+    max_retries: 2
+    attempts: 3
+
+  # Known critical services on DMZ hosts, every 10 minutes, any time of day.
+  - name: dmz-critical
+    targets: [198.51.100.10, 198.51.100.11]
+    profile: services
+    ports: "22,80,443,3389,5432"
+    interval: 10m
+    jitter: 30s
+    scan_windows: []
+
+alerting:
+  min_severity: warning   # info | warning | critical
+  cooldown: 1h            # suppress identical alerts (flapping hosts)
+  channels: []
+  # Examples:
+  #  - type: slack
+  #    webhook_url_ref: env:NETMON_SLACK_WEBHOOK
+  #  - type: webhook
+  #    url: https://siem.example.com/hooks/netmon
+  #    hmac_secret_ref: file:/run/secrets/netmon_webhook_secret
+  #  - type: email
+  #    smtp_host: smtp.example.com
+  #    smtp_port: 587
+  #    starttls: true
+  #    sender: netmon@example.com
+  #    recipients: [soc@example.com]
+  #    username_ref: env:NETMON_SMTP_USER
+  #    password_ref: file:/run/secrets/netmon_smtp_password
+
+metrics:
+  enabled: true
+  host: 0.0.0.0           # inside a container; use 127.0.0.1 on bare metal
+  port: 9105
+
+api:
+  enabled: false          # requires: pip install 'netmon[api]'
+  host: 127.0.0.1
+  port: 8080
+  token_ref: env:NETMON_API_TOKEN
+
+logging:
+  level: INFO
+  json: true

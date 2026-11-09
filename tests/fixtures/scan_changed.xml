@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -oX - -sT -sV 192.0.2.0/29" start="1794203600" version="7.94" xmloutputversion="1.05">
+<host><status state="up" reason="syn-ack"/>
+<address addr="192.0.2.10" addrtype="ipv4"/>
+<hostnames><hostname name="web01.example.test" type="PTR"/></hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/><service name="ssh" product="OpenSSH" version="9.6p1" method="probed" conf="10"/></port>
+<port protocol="tcp" portid="443"><state state="open" reason="syn-ack"/><service name="https" product="nginx" version="1.24.0" method="probed" conf="10"/></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack"/><service name="ms-wbt-server" method="table" conf="3"/></port>
+</ports>
+</host>
+<host><status state="up" reason="syn-ack"/>
+<address addr="192.0.2.12" addrtype="ipv4"/>
+<ports>
+<port protocol="tcp" portid="8443"><state state="open" reason="syn-ack"/><service name="https-alt" method="table" conf="3"/></port>
+</ports>
+</host>
+<runstats><finished time="1794203610" summary="Nmap done; 8 IP addresses (2 hosts up) scanned in 10.00 seconds" exit="success"/><hosts up="2" down="6" total="8"/></runstats>
+</nmaprun>

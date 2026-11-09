@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap -oX - -sn 192.0.2.0/29" start="1794203600" version="7.94">
+<host><status state="up" reason="conn-refused"/><address addr="192.0.2.10" addrtype="ipv4"/></host>
+<host><status state="up" reason="conn-refused"/><address addr="192.0.2.11" addrtype="ipv4"/></host>
+<runstats><finished time="1794203601" summary="Nmap done; 8 IP addresses (2 hosts up)" exit="success"/></runstats>
+</nmaprun>

@@ -1,0 +1,2 @@
+# One IP or CIDR per line. Comments allowed. Re-read before every scan.
+# 192.0.2.99   # example: lab printer, owner opted out (TICKET-123)

@@ -1,0 +1,25 @@
+groups:
+  - name: netmon
+    rules:
+      - alert: NetmonScanStale
+        # No successful scan for 3x a typical interval -> monitoring is blind.
+        expr: time() - netmon_last_success_timestamp_seconds > 3 * 3600
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "netmon job {{ $labels.job }} has not succeeded for >3h"
+      - alert: NetmonScanFailures
+        expr: increase(netmon_scans_total{status=~"failed|refused"}[1h]) > 2
+        labels: {severity: warning}
+        annotations:
+          summary: "netmon job {{ $labels.job }} is failing ({{ $value }} in 1h)"
+      - alert: NetmonCriticalChange
+        expr: increase(netmon_changes_total{severity="critical"}[15m]) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Critical exposure change detected by netmon job {{ $labels.job }}"
+      - alert: NetmonAlertDeliveryFailing
+        expr: increase(netmon_alerts_total{result="failed"}[30m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "netmon cannot deliver alerts via {{ $labels.channel }}"

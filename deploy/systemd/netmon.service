@@ -1,0 +1,35 @@
+# Bare-metal deployment. Install with:
+#   sudo useradd --system --home /var/lib/netmon --create-home netmon
+#   sudo setcap cap_net_raw,cap_net_admin+eip "$(command -v nmap)"   # only if privileged
+#   sudo cp deploy/systemd/netmon.service /etc/systemd/system/ && sudo systemctl enable --now netmon
+[Unit]
+Description=netmon network monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+EnvironmentFile=-/etc/netmon/netmon.env
+ExecStart=/opt/netmon/venv/bin/netmon -c /etc/netmon/config.yaml run
+Restart=on-failure
+RestartSec=30
+# Hardening
+# File capabilities on nmap are ignored under NoNewPrivileges. Set this to true
+# when nmap.privileged is false (TCP connect scans need no capabilities).
+NoNewPrivileges=false
+AmbientCapabilities=
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/netmon
+ReadOnlyPaths=/etc/netmon
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
