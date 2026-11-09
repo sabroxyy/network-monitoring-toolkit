@@ -121,7 +121,7 @@ python3 sabroxyy.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save r
 | Argument | Meaning |
 |---|---|
 | `-t` / `--target` | IP, subnet, range or hostname |
-| `-o` / `--options` | Menu numbers, e.g. `2,5,8` |
+| `-o` / `--options` | Menu numbers, e.g. `2,5,8`, or flags written with `=`: `-o=-sT,-sV` |
 | `-p` / `--ports` | Ports for option 7, e.g. `22,80,443` |
 | `-y` / `--yes` | Don't ask for confirmation |
 | `-s` / `--save` | Save the report to `reports/` |
@@ -160,10 +160,17 @@ For safety, subnets bigger than `/16` (65,536 addresses) are refused.
 | 12 | `-T4` | Faster timing | Timing templates go from `-T0` (paranoid, slowest) to `-T5` (insane). `-T4` is good on a fast LAN. | |
 | 13 | `--open` | Only open ports | Hides closed/filtered ports in Nmap's output. | |
 
+**How to choose:** type menu numbers or the flags themselves, separated by spaces,
+commas, `&` or `and`. These all mean the same thing:
+`2 5 8` · `2,5,8` · `2 & 5 & 8` · `-sT -F -sV`
+
 **Rules the script checks for you:**
 - Choose only one of `-sT` and `-sS`.
 - Choose only one of `-F`, `-p-` and `-p`.
-- `-sn` can't be combined with port scans.
+- `-sn` can't be combined with port scans. It only lists which devices are online. To
+  find devices *and* see their ports, first run `1` on the subnet, then run `2 5 8` (or
+  `3 5 8` with sudo) on the devices you found.
+- IPv4 addresses need 4 parts: `192.168.1.11-20` is valid, `192.168.11-20` is not.
 
 **Good combinations:**
 

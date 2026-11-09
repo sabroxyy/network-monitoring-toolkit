@@ -235,6 +235,31 @@ _PORTS_RE = re.compile(r"^\d{1,5}(-\d{1,5})?(,\d{1,5}(-\d{1,5})?)*$")
 MIN_PREFIX_V4 = 16  # refuse anything bigger than a /16 (65,536 addresses)
 
 
+_IPV4_LIKE_RE = re.compile(r"^[\d.\-]+$")  # only digits, dots and dashes
+_OCTET_RE = re.compile(r"^(\d{1,3})(?:-(\d{1,3}))?$")
+_HOSTNAME_RE = re.compile(
+    r"^(?=.*[A-Za-z])[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9\-]+)*$"
+)
+
+
+def _check_ipv4_or_range(t: str) -> None:
+    """Check '192.168.1.10' or a range like '192.168.1.1-50' (4 parts, each 0-255)."""
+    parts = t.split(".")
+    if len(parts) != 4:
+        raise ValueError(
+            f"'{t}' has {len(parts)} part(s) - an IPv4 address needs 4, "
+            "like 192.168.1.10 or the range 192.168.1.11-20"
+        )
+    for part in parts:
+        m = _OCTET_RE.match(part)
+        if not m:
+            raise ValueError(f"'{t}' is not a valid IP address (bad part '{part}')")
+        low = int(m.group(1))
+        high = int(m.group(2)) if m.group(2) else low
+        if low > 255 or high > 255 or low > high:
+            raise ValueError(f"'{t}': '{part}' must be a number or range between 0 and 255")
+
+
 def validate_targets(text: str) -> list[str]:
     """Split and check targets. Accepts IPs, subnets (CIDR), ranges and hostnames.
 
@@ -256,6 +281,15 @@ def validate_targets(text: str) -> list[str]:
                     f"'{t}' is {net.num_addresses:,} addresses - too big. "
                     f"Use /{MIN_PREFIX_V4} or smaller (e.g. /24 = 256 addresses)"
                 )
+        elif ":" in t:
+            try:
+                ipaddress.IPv6Address(t)
+            except ValueError:
+                raise ValueError(f"'{t}' is not a valid IPv6 address") from None
+        elif _IPV4_LIKE_RE.match(t):
+            _check_ipv4_or_range(t)
+        elif not _HOSTNAME_RE.match(t):
+            raise ValueError(f"'{t}' is not a valid IP, subnet or hostname")
     return targets
 
 
@@ -269,14 +303,26 @@ def validate_ports(text: str) -> str:
     return ports
 
 
+def find_option(token: str) -> Option:
+    """Find an option by menu number ('3') or by flag ('-sS', 'sS', '-ss')."""
+    if token.isdigit() and int(token) in OPTIONS_BY_NUMBER:
+        return OPTIONS_BY_NUMBER[int(token)]
+    wanted = token.lower().lstrip("-")
+    for o in OPTIONS:
+        if o.flag.lower().lstrip("-") == wanted:
+            return o
+    raise ValueError(
+        f"'{token}' is not an option - type a number 1-{len(OPTIONS)} or a flag from the menu"
+    )
+
+
 def parse_choices(text: str) -> list[Option]:
-    """Turn '2 5 8' or '2,5,8' into options and check they can be combined."""
+    """Turn '2 5 8', '2,5,8', '1 & 3' or '-sT -F -sV' into options and check them."""
     text = text.strip() or DEFAULT_CHOICE
+    tokens = re.split(r"[\s,&+]+|\band\b", text, flags=re.IGNORECASE)
     chosen: list[Option] = []
-    for token in text.replace(",", " ").split():
-        if not token.isdigit() or int(token) not in OPTIONS_BY_NUMBER:
-            raise ValueError(f"'{token}' is not an option number (1-{len(OPTIONS)})")
-        opt = OPTIONS_BY_NUMBER[int(token)]
+    for token in filter(None, tokens):
+        opt = find_option(token)
         if opt not in chosen:
             chosen.append(opt)
 
@@ -287,8 +333,10 @@ def parse_choices(text: str) -> list[Option]:
             names = " and ".join(f"{o.number} ({o.flag})" for o in same)
             raise ValueError(f"choose only one of {names}")
     if "-sn" in flags and flags & INCOMPATIBLE_WITH_PING:
+        others = ", ".join(sorted(flags & INCOMPATIBLE_WITH_PING))
         raise ValueError(
-            "option 1 (-sn) only finds live hosts; it can't be combined with port scans"
+            f"-sn (1) only lists which devices are online and scans NO ports, so it can't be "
+            f"combined with {others}. Choose 1 alone to find devices, or drop 1 to scan ports"
         )
     return chosen
 
@@ -328,6 +376,12 @@ class HostResult:
     hostname: str = ""
     os_guess: str = ""
     ports: list[OpenPort] = field(default_factory=list)
+
+
+def addresses_scanned(xml_text: str) -> int:
+    """How many addresses Nmap actually scanned (0 = the target could not be resolved)."""
+    hosts = parse_xml(xml_text).find("runstats/hosts")
+    return int(hosts.get("total", "0")) if hosts is not None else 0
 
 
 def parse_nmap_xml(xml_text: str) -> list[HostResult]:
@@ -402,6 +456,21 @@ def render_report(hosts: list[HostResult], command: list[str], color: bool) -> s
         lines.append(" No hosts are up (or they block discovery - try option 11, -Pn).")
         return "\n".join(lines)
 
+    if "-sn" in command:  # ping scan: we only know which devices are online
+        lines.append(f" {len(hosts)} device(s) online:")
+        for host in hosts:
+            name = f"  ({host.hostname})" if host.hostname else ""
+            lines.append(f"   {c('UP', 'green')}  {host.address}{name}")
+        lines += [
+            "",
+            c(
+                " Ports were not checked (-sn). Scan a device's ports with e.g. options 2 5 8.",
+                "dim",
+            ),
+            c("-" * 78, "cyan"),
+        ]
+        return "\n".join(lines)
+
     totals = {CRITICAL: 0, MEDIUM: 0, LOW: 0}
     for host in hosts:
         title = host.address + (f" ({host.hostname})" if host.hostname else "")
@@ -458,10 +527,11 @@ def show_menu() -> None:
     print(" " + "-" * 76)
     print(
         paint(
-            f" Combine numbers with spaces. Press Enter for the default: {DEFAULT_CHOICE}",
+            " Type numbers or flags, e.g.  2 5 8   or   -sT -F -sV   or   2 & 8",
             "dim",
         )
     )
+    print(paint(f" Press Enter for the default: {DEFAULT_CHOICE}", "dim"))
     print(paint("   (TCP connect scan + 100 common ports + version detection)", "dim"))
 
 
@@ -571,7 +641,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         print()
-        hosts = parse_nmap_xml(run_nmap(command))
+        xml_text = run_nmap(command)
+        if addresses_scanned(xml_text) == 0:
+            raise RuntimeError(
+                "Nmap scanned 0 addresses - it could not understand or resolve the target. "
+                "Check the IP address or hostname"
+            )
+        hosts = parse_nmap_xml(xml_text)
         print()
         print(render_report(hosts, command, USE_COLOR))
 

@@ -42,13 +42,30 @@ def test_valid_targets(text: str) -> None:
     assert s.validate_targets(text) == [text]
 
 
+def test_three_part_address_explains_fix() -> None:
+    with pytest.raises(ValueError, match="needs 4"):
+        s.validate_targets("192.168.11-20")
+
+
 def test_several_targets() -> None:
     assert s.validate_targets("192.168.1.1, 192.168.1.2") == ["192.168.1.1", "192.168.1.2"]
 
 
 @pytest.mark.parametrize(
     "text",
-    ["", "-iL /etc/passwd", "1.1.1.1; rm -rf /", "$(whoami)", "10.0.0.0/8", "1.2.3.4/99"],
+    [
+        "",
+        "-iL /etc/passwd",
+        "1.1.1.1; rm -rf /",
+        "$(whoami)",
+        "10.0.0.0/8",
+        "1.2.3.4/99",
+        "192.168.11-20",  # only 3 parts
+        "192.168.1.300",
+        "192.168.1.50-10",  # range backwards
+        "1.2.3.4.5",
+        "fe80::zz",
+    ],
 )
 def test_invalid_targets(text: str) -> None:
     with pytest.raises(ValueError):
@@ -72,14 +89,25 @@ def test_choices_with_commas_and_duplicates() -> None:
     assert [o.flag for o in s.parse_choices("3,9,3")] == ["-sS", "-O"]
 
 
+@pytest.mark.parametrize("text", ["2 & 8", "2&8", "2 and 8", "2+8", "-sT -sV", "sT, sv", "-st & 8"])
+def test_choices_accept_flags_and_separators(text: str) -> None:
+    assert [o.flag for o in s.parse_choices(text)] == ["-sT", "-sV"]
+
+
+def test_ping_scan_with_skip_discovery_is_allowed() -> None:
+    assert [o.flag for o in s.parse_choices("1 & 11")] == ["-sn", "-Pn"]
+
+
 @pytest.mark.parametrize(
     ("text", "message"),
     [
         ("2 3", "only one"),  # -sT and -sS
         ("5 6", "only one"),  # -F and -p-
         ("1 8", "can't be combined"),  # -sn with -sV
+        ("-sn & -sS", "can't be combined"),
         ("99", "not an option"),
         ("x", "not an option"),
+        ("-sZ", "not an option"),
     ],
 )
 def test_bad_choices(text: str, message: str) -> None:
@@ -120,6 +148,20 @@ def test_parse_nmap_xml() -> None:
         (9999, s.LOW),
     ]  # closed port 80 skipped
     assert server.ports[0].version == "OpenSSH 9.6"
+
+
+def test_ping_scan_report_lists_devices() -> None:
+    report = s.render_report(s.parse_nmap_xml(SAMPLE_XML), ["nmap", "-sn", "x"], color=False)
+    assert "2 device(s) online" in report and "UP  192.0.2.10  (server.lan)" in report
+    assert "Ports were not checked" in report and "CRITICAL" not in report
+
+
+def test_addresses_scanned() -> None:
+    assert s.addresses_scanned(SAMPLE_XML) == 0  # no <runstats>
+    done = '<nmaprun><runstats><hosts up="1" down="0" total="1"/></runstats></nmaprun>'
+    assert s.addresses_scanned(done) == 1
+    failed = '<nmaprun><runstats><hosts up="0" down="0" total="0"/></runstats></nmaprun>'
+    assert s.addresses_scanned(failed) == 0
 
 
 def test_report() -> None:
