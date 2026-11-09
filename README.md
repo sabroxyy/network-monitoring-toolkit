@@ -1,150 +1,244 @@
-# network-monitoring-toolkit — `netmon`
-
-Safe, scheduled network monitoring built on **Nmap** and **Python**: discovery, port,
-service and version detection on a schedule, change detection with severities, alerts
-(Slack / signed webhook / email), history in SQL and a Prometheus exporter.
-
-It is designed for small teams that want something **reliable, auditable and hard to
-misuse**:
-
-- **Fails closed.** Every target is checked against an allow-list of networks, an opt-out
-  list, scan windows and an expiring authorization record before a packet is sent.
-- **No shell, no free-form flags.** Nmap is invoked as an argv list from typed config;
-  output is parsed with `defusedxml`.
-- **Non-root by default.** TCP connect scans need no privileges; raw-socket scans use
-  `CAP_NET_RAW` on the nmap binary only.
-- **Quiet by design.** First scan is a silent baseline; afterwards you're told only what
-  changed, with cooldown against flapping.
+<div align="center">
 
 ```
-nmap ──XML──▶ parse ──▶ diff vs. last state ──▶ SQLite history ──▶ alerts + /metrics
-  ▲
-  └── scheduler (intervals, jitter, windows, concurrency & rate budget) ◀── policy
+███████╗ █████╗ ██████╗ ██████╗  ██████╗ ██╗  ██╗██╗   ██╗██╗   ██╗
+██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝╚██╗ ██╔╝
+███████╗███████║██████╔╝██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝  ╚████╔╝
+╚════██║██╔══██║██╔══██╗██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝    ╚██╔╝
+███████║██║  ██║██████╔╝██║  ██║╚██████╔╝██╔╝ ██╗   ██║      ██║
+╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝      ╚═╝
 ```
 
-## Quick start
+# Network Monitoring Toolkit — Nmap Scanner
 
-Requirements: Python ≥ 3.11 and `nmap` on `PATH` (`apt install nmap` / `brew install nmap`).
+**A simple, interactive Nmap scanner in Python that tells you which open ports are critical.**
+
+</div>
+
+---
+
+## Description
+
+**Nmap** ("Network Mapper") is a free tool that discovers devices on a network and the
+ports and services they have open.
+
+`sabroxyy.py` makes Nmap easy to use:
+
+1. **You type the target**: one IP address, a subnet, or a range.
+2. **You choose scan options from a menu.** Every option shows its Nmap flag (`-sS`,
+   `-sV`, …) and explains what it does.
+3. **Nmap runs** and you see its normal output.
+4. **You get a report** where every open port is labelled
+   🔴 **CRITICAL**, 🟡 **MEDIUM** or 🟢 **LOW** risk, with the reason.
+5. Optionally, **save the report** to the `reports/` folder.
+
+> ⚠️ **Only scan networks you own or have written permission to scan.** Scanning other
+> people's networks may be illegal.
+
+---
+
+## Installation
+
+**1. Install Nmap**
+
+| System | Command |
+|---|---|
+| Ubuntu / Debian / Kali | `sudo apt install nmap` |
+| macOS | `brew install nmap` |
+| Windows | Download from <https://nmap.org/download.html> |
+
+**2. Download this repository**
 
 ```bash
 git clone https://github.com/sabroxyy/network-monitoring-toolkit.git
 cd network-monitoring-toolkit
-python -m venv .venv && . .venv/bin/activate
-pip install -e '.[dev]'
 ```
 
-Try it on your own machine (scans only `127.0.0.1`):
+The script uses only Python 3 (3.9 or newer) and its standard library. Nothing else is
+required. Optionally, `pip install defusedxml` adds a hardened XML parser.
+
+---
+
+## Usage
 
 ```bash
-python examples/minimal_scan.py
+python3 sabroxyy.py          # normal scans
+sudo python3 sabroxyy.py     # needed for options marked [sudo]: -sS, -sU, -O, -A
 ```
 
-```text
-run 1: succeeded
-  127.0.0.1 8000/tcp http SimpleHTTPServer 0.6
-Start/stop a service on 127.0.0.1:8000-8100, then press Enter...
-run 2: succeeded
-  [warning] 127.0.0.1: port 8081/tcp opened (http SimpleHTTPServer 0.6)
+### Example session
+
+```
+ Enter IP or subnet to scan: 192.168.1.0/24
+
+ Scan options  (Nmap flag -> what it does)
+ ----------------------------------------------------------------------------
+  1) -sn     Ping scan (host discovery)
+              Finds which devices are online. Does NOT scan ports.
+  2) -sT     TCP connect scan
+              Completes the full TCP handshake on each port. Works without sudo.
+  3) -sS     TCP SYN 'stealth' scan [sudo]
+  ...
+ Choose options: 2 5 8
+
+ Command: nmap -sT -F -sV 192.168.1.0/24
+ Start the scan? [y/N] y
 ```
 
-## Configure
+### Example report
+
+```
+==============================================================================
+ SABROXYY SCAN REPORT   2026-11-09 14:28:26
+ Command: nmap -sT -F -sV 192.168.1.0/24
+==============================================================================
+
+ Host: 192.168.1.20 (nas.lan)
+   PORT      SERVICE       VERSION                     RISK
+   --------------------------------------------------------------------------
+   22/tcp    ssh           OpenSSH 9.6                 MEDIUM
+             -> SSH remote login - common brute-force target; use keys, not passwords
+   445/tcp   microsoft-ds  Samba smbd 4.6.2            CRITICAL
+             -> SMB file sharing - target of WannaCry/EternalBlue
+   443/tcp   https         nginx 1.24.0                LOW
+             -> HTTPS encrypted website - keep the software updated
+
+------------------------------------------------------------------------------
+ Summary: 1 CRITICAL  |  1 MEDIUM  |  1 LOW
+ ! Close or firewall CRITICAL ports unless you really need them,
+   and never expose them to the internet.
+------------------------------------------------------------------------------
+```
+
+### Quick mode (no questions)
 
 ```bash
-cp config/config.example.yaml config.yaml   # edit allowed_networks, jobs, authorization
-netmon -c config.yaml validate              # prints exact nmap argv per job; sends nothing
+python3 sabroxyy.py -t 192.168.1.10 -o 2,5,8 -y        # target + options, no confirm
+python3 sabroxyy.py -t 192.168.1.10 -o 2,7 -p 22,80 -y  # custom ports
+python3 sabroxyy.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save report
 ```
 
-A minimal config:
+| Argument | Meaning |
+|---|---|
+| `-t` / `--target` | IP, subnet, range or hostname |
+| `-o` / `--options` | Menu numbers, e.g. `2,5,8` |
+| `-p` / `--ports` | Ports for option 7, e.g. `22,80,443` |
+| `-y` / `--yes` | Don't ask for confirmation |
+| `-s` / `--save` | Save the report to `reports/` |
 
-```yaml
-database: sqlite:///netmon.db
-policy:
-  allowed_networks: [192.0.2.0/24]          # hard scope
-  exclude: [192.0.2.1]                       # opt-out
-  scan_windows:
-    - {days: [mon, tue, wed, thu, fri], start: "19:00", end: "07:00", timezone: UTC}
-  max_rate: 300                              # global packets/s
-  authorization: {owner: netops@example.com, reference: CHG-42, expires: 2027-12-31}
-jobs:
-  - {name: lan-discovery, targets: [192.0.2.0/24], profile: discovery, interval: 15m}
-  - name: lan-services
-    targets: [192.0.2.0/24]
-    profile: services
-    top_ports: 200
-    incremental: true          # sweep, then only re-scan new/stale hosts
-    interval: 1h
-alerting:
-  channels:
-    - {type: slack, webhook_url_ref: env:NETMON_SLACK_WEBHOOK}   # secrets by reference only
+---
+
+## Targets you can type
+
+| Type | Example | Meaning |
+|---|---|---|
+| Single IP | `192.168.1.10` | One device |
+| Subnet (CIDR) | `192.168.1.0/24` | 256 addresses (192.168.1.0 – 192.168.1.255) |
+| Range | `192.168.1.1-50` | Addresses .1 to .50 |
+| Several | `192.168.1.1 192.168.1.20` | Separate with spaces or commas |
+| Hostname | `router.lan` | A name your network can resolve |
+
+For safety, subnets bigger than `/16` (65,536 addresses) are refused.
+
+---
+
+## Menu options: what each Nmap flag does
+
+| # | Flag | Name | What it does | Needs sudo |
+|---|---|---|---|---|
+| 1 | `-sn` | Ping scan | Finds which devices are online. **No port scan.** | |
+| 2 | `-sT` | TCP connect scan | Completes the full TCP handshake (SYN → SYN/ACK → ACK) on each port. Reliable and works without admin rights, but easy to log. | |
+| 3 | `-sS` | TCP SYN "stealth" scan | Sends only SYN and never completes the handshake (half-open). Faster and quieter. The default when run as root. | ✅ |
+| 4 | `-sU` | UDP scan | Finds UDP services like DNS (53), SNMP (161), DHCP (67). Slow because UDP rarely replies. | ✅ |
+| 5 | `-F` | Fast scan | Scans the 100 most common ports instead of the default 1,000. | |
+| 6 | `-p-` | All ports | Scans all 65,535 ports. Thorough but slow. | |
+| 7 | `-p` | Custom ports | Only the ports you list: `-p 22,80,443` or `-p 1-1024`. | |
+| 8 | `-sV` | Version detection | Talks to each open port to find the software and version (e.g. `OpenSSH 9.6`). | |
+| 9 | `-O` | OS detection | Guesses the operating system from how the device answers. | ✅ |
+| 10 | `-A` | Aggressive | Shortcut for `-O` + `-sV` + default scripts (`-sC`) + traceroute. Very detailed and very noisy. | ✅ |
+| 11 | `-Pn` | Skip host discovery | Treats every host as online. Use it when a firewall blocks ping and hosts look "down". | |
+| 12 | `-T4` | Faster timing | Timing templates go from `-T0` (paranoid, slowest) to `-T5` (insane). `-T4` is good on a fast LAN. | |
+| 13 | `--open` | Only open ports | Hides closed/filtered ports in Nmap's output. | |
+
+**Rules the script checks for you:**
+- Choose only one of `-sT` and `-sS`.
+- Choose only one of `-F`, `-p-` and `-p`.
+- `-sn` can't be combined with port scans.
+
+**Good combinations:**
+
+| Goal | Options | Command |
+|---|---|---|
+| Who is on my network? | `1` | `nmap -sn 192.168.1.0/24` |
+| Quick check, no sudo (default) | `2 5 8` | `nmap -sT -F -sV 192.168.1.10` |
+| Fast stealth scan | `3 5 12` (sudo) | `nmap -sS -F -T4 192.168.1.10` |
+| Everything about one device | `10 6` (sudo) | `nmap -A -p- 192.168.1.10` |
+| Device blocks ping | `2 11 8` | `nmap -sT -Pn -sV 192.168.1.10` |
+
+---
+
+## More Nmap flags: cheat sheet
+
+These aren't in the menu, but they're useful to know when you run `nmap` yourself.
+
+| Flag | What it does |
+|---|---|
+| `-sA` | ACK scan: maps firewall rules (filtered vs unfiltered), not open ports |
+| `-sF` `-sN` `-sX` | FIN / NULL / Xmas scans: odd packets that can slip past simple firewalls |
+| `-sC` | Run the default NSE scripts (safe information gathering) |
+| `--script <name>` | Run specific NSE scripts, e.g. `--script vuln` (can be intrusive!) |
+| `--top-ports <n>` | Scan the *n* most common ports |
+| `-p U:53,T:80` | Mix UDP and TCP ports |
+| `-6` | Scan IPv6 addresses |
+| `-n` / `-R` | Never / always do reverse-DNS lookups |
+| `-v` / `-vv` | More detail while scanning |
+| `--reason` | Show *why* a port is open/closed/filtered |
+| `-iL <file>` | Read targets from a file |
+| `--exclude <ip>` | Skip these addresses |
+| `-oN` / `-oX` / `-oG` / `-oA` | Save output as normal text / XML / grepable / all formats |
+| `-S <ip>` | Spoof the **source** IP address (replies won't come back to you; rarely useful) |
+| `-D <decoys>` | Hide your scan among decoy IPs |
+| `-f` | Fragment packets (evade simple packet filters) |
+| `--max-rate <n>` | Send at most *n* packets per second (be gentle with fragile devices) |
+
+Note that capital `-S` (spoof source address) is completely different from the
+lowercase `-s` scan types (`-sS`, `-sT`, `-sU`, …).
+
+---
+
+## Port risk levels
+
+| Level | Meaning | Examples |
+|---|---|---|
+| 🔴 **CRITICAL** | Often attacked, sends passwords in clear text, or gives direct control/data access. Close it or firewall it. | 21 FTP, 23 Telnet, 135/139/445 Windows/SMB, 161 SNMP, 1433 MSSQL, 2375 Docker, 3306 MySQL, 3389 RDP, 5432 PostgreSQL, 5900 VNC, 6379 Redis, 9200 Elasticsearch, 27017 MongoDB |
+| 🟡 **MEDIUM** | Normal services that need correct configuration. | 22 SSH, 25 SMTP, 53 DNS, 80 HTTP, 110 POP3, 143 IMAP, 389 LDAP, 8080 HTTP-alt |
+| 🟢 **LOW** | Encrypted or not in the known-risk list. Still check that you expect it. | 443 HTTPS, 993 IMAPS, 995 POP3S, other ports |
+
+The full list with reasons is the `PORT_RISKS` table at the top of
+[`sabroxyy.py`](sabroxyy.py). Edit it to fit your network.
+
+---
+
+## Project files
+
+```
+network-monitoring-toolkit/
+├── sabroxyy.py              # the scanner (one file, no dependencies)
+├── tests/test_sabroxyy.py   # automated tests:  python3 -m pytest -q
+├── reports/                 # saved reports (created when you save one)
+├── README.md
+└── LICENSE
 ```
 
-Full reference: [docs/configuration.md](docs/configuration.md).
+---
 
-## Run
+## Legal
 
-```bash
-netmon -c config.yaml scan --job lan-services   # one-off run (still policy-checked)
-netmon -c config.yaml run                       # scheduler daemon + metrics on :9105
-netmon -c config.yaml changes --limit 20        # recent changes (JSON)
-netmon -c config.yaml history 192.0.2.10        # per-port history of a host
-```
+Use this tool only on systems you own or are **explicitly authorised** to test. The
+author is not responsible for misuse.
 
-Docker:
+<div align="center">
 
-```bash
-docker build -t netmon .
-docker run -d --network host --cap-drop ALL \
-  -v "$PWD/config.yaml:/etc/netmon/config.yaml:ro" -v netmon-data:/var/lib/netmon netmon
-# add --cap-add NET_RAW --cap-add NET_ADMIN only if nmap.privileged: true
-```
+Made by **SABROXYY** · MIT License
 
-`deploy/docker-compose.yml` brings up netmon + Prometheus with ready-made alert rules.
-
-## Repository layout
-
-```
-src/netmon/
-  config.py            typed YAML config, durations, scan windows, secret refs
-  policy.py            scope / opt-out / windows / authorization (fail closed)
-  scanner/command.py   allow-listed nmap argv builder + rate budgeting
-  scanner/runner.py    asyncio subprocess: timeout, scrubbed env, process-group kill
-  scanner/parser.py    defusedxml → Host/Service models
-  diff.py              baseline + change detection with severities
-  service.py           one job run: policy → nmap → parse → diff → store → alert → metrics
-  scheduler.py         per-job asyncio loops, jitter, global concurrency limit
-  storage/             Storage protocol, SQLite backend, numbered SQL migrations
-  alerting/            Slack, HMAC webhook, email; severity filter, cooldown, retries
-  metrics.py           Prometheus exporter
-  cli.py / api.py      CLI and optional read-only FastAPI
-tests/
-  unit/                fast, no network (FakeRunner + XML fixtures)
-  integration/         real nmap against 127.0.0.1 only
-  fixtures/            sanitised nmap XML (RFC 5737 addresses), XXE/truncated samples
-config/                example config + opt-out file
-deploy/                docker-compose, Prometheus config & alert rules, systemd unit
-docs/                  architecture, security, operations, configuration
-examples/              minimal scanner, webhook signature verifier
-.github/               CI (lint, mypy, tests ×3 Pythons, pip-audit, Docker + Trivy), release
-```
-
-## Development
-
-```bash
-make check        # ruff format/lint + mypy --strict + pytest with coverage gate (80%)
-make test-unit    # skip tests that need a real nmap binary
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Design rationale (why direct subprocess instead of
-python-nmap/libnmap, why asyncio, incremental scanning, storage options) is in
-[docs/architecture.md](docs/architecture.md). Deployment, runbook, backups and the
-upgrade/migration strategy are in [docs/operations.md](docs/operations.md).
-
-## Responsible use
-
-Only scan networks you own or are explicitly authorised to test. Read
-[docs/security.md](docs/security.md) before pointing netmon at production, and report
-vulnerabilities in netmon itself via [SECURITY.md](SECURITY.md).
-
-## License
-
-[MIT](LICENSE)
+</div>

@@ -219,9 +219,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# netmon local state
-*.db
-*.db-wal
-*.db-shm
-deploy/config.yaml
-deploy/secrets/
+# saved scan reports (contain details about your network)
+reports/
