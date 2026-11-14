@@ -12,9 +12,9 @@ A simple, interactive Nmap helper:
 Only scan networks you own or have written permission to scan.
 
 Usage:
-    python3 sabroxyy.py                                  # interactive menu
-    sudo python3 sabroxyy.py                             # needed for -sS, -sU, -O, -A
-    python3 sabroxyy.py -t 192.168.1.0/24 -o 2,5,8 -y    # no questions asked
+    python3 netscan.py                                  # interactive menu
+    sudo python3 netscan.py                             # needed for -sS, -sU, -O, -A
+    python3 netscan.py -t 192.168.1.0/24 -o 2,5,8 -y    # no questions asked
 """
 
 from __future__ import annotations
@@ -627,7 +627,7 @@ def main(argv: list[str] | None = None) -> int:
         if needs_root and not is_root():
             flags = ", ".join(o.flag for o in needs_root)
             print(paint(f"\n x {flags} needs administrator rights. Run again with:", "red"))
-            print("     sudo python3 sabroxyy.py")
+            print("     sudo python3 netscan.py")
             print(paint("   or choose option 2 (-sT) instead of 3 (-sS).", "dim"))
             return 1
 

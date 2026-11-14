@@ -1,4 +1,4 @@
-"""Tests for sabroxyy.py. Run with:  python3 -m pytest -q"""
+"""Tests for netscan.py. Run with:  python3 -m pytest -q"""
 
 import shutil
 import sys
@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import sabroxyy as s  # noqa: E402
+import netscan as s  # noqa: E402
 
 SAMPLE_XML = """<?xml version="1.0"?>
 <!DOCTYPE nmaprun>
@@ -181,7 +181,7 @@ def test_root_needed_message(
     monkeypatch.setattr(s, "is_root", lambda: False)
     monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/nmap")
     assert s.main(["-t", "127.0.0.1", "-o", "3", "-y"]) == 1
-    assert "sudo python3 sabroxyy.py" in capsys.readouterr().out
+    assert "sudo python3 netscan.py" in capsys.readouterr().out
 
 
 def test_bad_target_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:

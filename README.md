@@ -1,72 +1,63 @@
 <div align="center">
 
-```
-███████╗ █████╗ ██████╗ ██████╗  ██████╗ ██╗  ██╗██╗   ██╗██╗   ██╗
-██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝╚██╗ ██╔╝
-███████╗███████║██████╔╝██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝  ╚████╔╝
-╚════██║██╔══██║██╔══██╗██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝    ╚██╔╝
-███████║██║  ██║██████╔╝██║  ██║╚██████╔╝██╔╝ ██╗   ██║      ██║
-╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝      ╚═╝
-```
+# 🛰️ Network Monitoring Toolkit
 
-# Network Monitoring Toolkit — Nmap Scanner
+**An interactive Nmap scanner in Python that tells you which open ports are dangerous, and why.**
 
-**A simple, interactive Nmap scanner in Python that tells you which open ports are critical.**
+[![CI](https://github.com/sabroxyy/network-monitoring-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/sabroxyy/network-monitoring-toolkit/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Nmap](https://img.shields.io/badge/powered%20by-Nmap-4682B4)
+![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
+<!-- DEMO: record a 10–15s terminal clip (e.g. with `vhs` or `asciinema` + `agg`),
+     save it as docs/demo.gif, then delete this comment and uncomment the line below. -->
+<!-- <img src="docs/demo.gif" alt="netscan demo" width="760"> -->
 
 </div>
 
 ---
 
-## Description
+## ✨ Why this tool
 
-**Nmap** ("Network Mapper") is a free tool that discovers devices on a network and the
-ports and services they have open.
+Nmap tells you a port is **open**. It doesn't tell you whether you should **worry**.
+`netscan.py` wraps Nmap in a guided menu and turns the results into a risk report:
 
-`sabroxyy.py` makes Nmap easy to use:
+- 🧭 **Guided menu**: every option shows its Nmap flag (`-sS`, `-sV`, …) and explains it in plain English
+- 🚦 **Risk rating**: each open port is labelled 🔴 **CRITICAL**, 🟡 **MEDIUM** or 🟢 **LOW**, with the reason
+- 🛡️ **Safe by default**: validates targets, refuses subnets larger than `/16`, blocks conflicting flags
+- ⚡ **Quick mode**: one-line, non-interactive scans for scripts and cron jobs
+- 📄 **Saved reports**: timestamped text reports in `reports/`
+- 📦 **Zero dependencies**: one file, Python standard library only, tested in CI on 3.9 / 3.12 / 3.13
 
-1. **You type the target**: one IP address, a subnet, or a range.
-2. **You choose scan options from a menu.** Every option shows its Nmap flag (`-sS`,
-   `-sV`, …) and explains what it does.
-3. **Nmap runs** and you see its normal output.
-4. **You get a report** where every open port is labelled
-   🔴 **CRITICAL**, 🟡 **MEDIUM** or 🟢 **LOW** risk, with the reason.
-5. Optionally, **save the report** to the `reports/` folder.
-
-> ⚠️ **Only scan networks you own or have written permission to scan.** Scanning other
-> people's networks may be illegal.
+> ⚠️ **Only scan networks you own or have written permission to scan.** Scanning other people's networks may be illegal.
 
 ---
 
-## Installation
-
-**1. Install Nmap**
-
-| System | Command |
-|---|---|
-| Ubuntu / Debian / Kali | `sudo apt install nmap` |
-| macOS | `brew install nmap` |
-| Windows | Download from <https://nmap.org/download.html> |
-
-**2. Download this repository**
+## 🚀 Quick start
 
 ```bash
+# 1. Install Nmap
+sudo apt install nmap            # Ubuntu / Debian / Kali
+# brew install nmap              # macOS
+# Windows: https://nmap.org/download.html
+
+# 2. Get the tool
 git clone https://github.com/sabroxyy/network-monitoring-toolkit.git
 cd network-monitoring-toolkit
+
+# 3. Run it
+python3 netscan.py               # interactive menu
+sudo python3 netscan.py          # needed for -sS, -sU, -O, -A
 ```
 
-The script uses only Python 3 (3.9 or newer) and its standard library. Nothing else is
-required. Optionally, `pip install defusedxml` adds a hardened XML parser.
+Optional: `pip install defusedxml` adds a hardened XML parser.
 
 ---
 
-## Usage
+## 🖥️ What it looks like
 
-```bash
-python3 sabroxyy.py          # normal scans
-sudo python3 sabroxyy.py     # needed for options marked [sudo]: -sS, -sU, -O, -A
-```
-
-### Example session
+**Pick a target and options:**
 
 ```
  Enter IP or subnet to scan: 192.168.1.0/24
@@ -85,7 +76,7 @@ sudo python3 sabroxyy.py     # needed for options marked [sudo]: -sS, -sU, -O, -
  Start the scan? [y/N] y
 ```
 
-### Example report
+**Get a risk report:**
 
 ```
 ==============================================================================
@@ -110,12 +101,14 @@ sudo python3 sabroxyy.py     # needed for options marked [sudo]: -sS, -sU, -O, -
 ------------------------------------------------------------------------------
 ```
 
-### Quick mode (no questions)
+---
+
+## ⚡ Quick mode (no questions)
 
 ```bash
-python3 sabroxyy.py -t 192.168.1.10 -o 2,5,8 -y        # target + options, no confirm
-python3 sabroxyy.py -t 192.168.1.10 -o 2,7 -p 22,80 -y  # custom ports
-python3 sabroxyy.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save report
+python3 netscan.py -t 192.168.1.10 -o 2,5,8 -y        # target + options, no confirm
+python3 netscan.py -t 192.168.1.10 -o 2,7 -p 22,80 -y  # custom ports
+python3 netscan.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save report
 ```
 
 | Argument | Meaning |
@@ -128,7 +121,10 @@ python3 sabroxyy.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save r
 
 ---
 
-## Targets you can type
+## 📚 Reference
+
+<details>
+<summary><b>Targets you can type</b></summary>
 
 | Type | Example | Meaning |
 |---|---|---|
@@ -140,9 +136,10 @@ python3 sabroxyy.py -t 192.168.1.0/24 -o 1 -y -s       # find live hosts, save r
 
 For safety, subnets bigger than `/16` (65,536 addresses) are refused.
 
----
+</details>
 
-## Menu options: what each Nmap flag does
+<details>
+<summary><b>Menu options: what each Nmap flag does</b></summary>
 
 | # | Flag | Name | What it does | Needs sudo |
 |---|---|---|---|---|
@@ -182,9 +179,10 @@ commas, `&` or `and`. These all mean the same thing:
 | Everything about one device | `10 6` (sudo) | `nmap -A -p- 192.168.1.10` |
 | Device blocks ping | `2 11 8` | `nmap -sT -Pn -sV 192.168.1.10` |
 
----
+</details>
 
-## More Nmap flags: cheat sheet
+<details>
+<summary><b>More Nmap flags: cheat sheet</b></summary>
 
 These aren't in the menu, but they're useful to know when you run `nmap` yourself.
 
@@ -211,9 +209,10 @@ These aren't in the menu, but they're useful to know when you run `nmap` yoursel
 Note that capital `-S` (spoof source address) is completely different from the
 lowercase `-s` scan types (`-sS`, `-sT`, `-sU`, …).
 
----
+</details>
 
-## Port risk levels
+<details open>
+<summary><b>Port risk levels</b></summary>
 
 | Level | Meaning | Examples |
 |---|---|---|
@@ -222,30 +221,45 @@ lowercase `-s` scan types (`-sS`, `-sT`, `-sU`, …).
 | 🟢 **LOW** | Encrypted or not in the known-risk list. Still check that you expect it. | 443 HTTPS, 993 IMAPS, 995 POP3S, other ports |
 
 The full list with reasons is the `PORT_RISKS` table at the top of
-[`sabroxyy.py`](sabroxyy.py). Edit it to fit your network.
+[`netscan.py`](netscan.py). Edit it to fit your network.
+
+</details>
 
 ---
 
-## Project files
+## 🗂️ Project files
 
 ```
 network-monitoring-toolkit/
-├── sabroxyy.py              # the scanner (one file, no dependencies)
-├── tests/test_sabroxyy.py   # automated tests:  python3 -m pytest -q
-├── reports/                 # saved reports (created when you save one)
+├── netscan.py               # the scanner (one file, no dependencies)
+├── tests/test_netscan.py    # automated tests:  python3 -m pytest -q
+├── reports/                 # saved reports (created when you save one; git-ignored)
+├── .github/workflows/ci.yml # runs the tests on every push
 ├── README.md
 └── LICENSE
 ```
 
 ---
 
-## Legal
+## 🛣️ Roadmap
 
-Use this tool only on systems you own or are **explicitly authorised** to test. The
-author is not responsible for misuse.
+- [ ] Export reports as HTML / CSV
+- [ ] Compare two scans and show new or closed ports (`ndiff`-style)
+- [ ] Scheduled scans with alerts
+
+Ideas and pull requests are welcome. Open an [issue](https://github.com/sabroxyy/network-monitoring-toolkit/issues) first for bigger changes.
+
+---
+
+## ⚖️ Legal
+
+Use this tool only on systems you own or are **explicitly authorised** to test.
+The author is not responsible for misuse.
 
 <div align="center">
 
-Made by **SABROXYY** · MIT License
+Built by **[Sabry Ayoub](https://github.com/sabroxyy)**, network & security engineer · [LinkedIn](https://www.linkedin.com/in/sabryayoub) · MIT License
+
+⭐ **If this helped you, star the repo so others can find it.**
 
 </div>
