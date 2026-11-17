@@ -221,3 +221,11 @@ __marimo__/
 
 # saved scan reports (contain details about your network)
 reports/
+.env.*
+*.pem
+*.key
+id_rsa*
+node_modules/
+.venv/
+.DS_Store
+.claude/settings.local.json
